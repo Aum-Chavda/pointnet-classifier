@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+*.pth
+*.ckpt
+data/
+outputs/
+checkpoints/
+docs/*.png
+*.log
+*.json
+.DS_Store

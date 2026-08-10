@@ -1,0 +1,29 @@
+[project]
+name = "pointnet-classifier"
+version = "0.1.0"
+description = "PointNet 3D Object Classifier — ModelNet40, from-scratch PyTorch"
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "numpy",
+    "pillow",
+    "pyyaml",
+    "timm",
+    "pytest",
+    "matplotlib",
+    "scikit-learn",
+    "scipy",
+    "tqdm",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch" }
+torchvision = { index = "pytorch" }
