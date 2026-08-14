@@ -179,3 +179,116 @@ if RUN_ONLY is None or RUN_ONLY == 3:
     tnet64_params = sum(p.numel() for p in tnet64.parameters() if p.requires_grad)
     print(f"    TNet(k=3)  params : {tnet3_params:,}")
     print(f"    TNet(k=64) params : {tnet64_params:,}")
+    # ======================================================================
+# TEST 4 — PointNet full forward pass shapes + losses
+# ======================================================================
+if RUN_ONLY is None or RUN_ONLY == 4:
+    print("\n[4] Testing PointNet full forward pass...")
+
+    import torch
+    from src.utils.config import PointNetConfig
+    from src.models.pointnet import PointNet
+
+    cfg = PointNetConfig()
+    B, N = 4, 1024
+    model = PointNet(cfg)
+    model.eval()
+
+    x = torch.randn(B, N, 3)   # [B, N, 3] — raw point cloud
+
+    with torch.no_grad():
+        logits, trans_inp, trans_feat = model(x)
+
+    # shape tests
+    assert logits.shape     == (B, cfg.num_classes), \
+        f"logits: expected ({B},{cfg.num_classes}), got {logits.shape}"
+    assert trans_inp.shape  == (B, 3,  3),  \
+        f"trans_inp: expected ({B},3,3), got {trans_inp.shape}"
+    assert trans_feat.shape == (B, 64, 64), \
+        f"trans_feat: expected ({B},64,64), got {trans_feat.shape}"
+
+    # logits should not be all zeros (model is initialised, not collapsed)
+    assert logits.abs().sum().item() > 0, "logits are all zero — something wrong"
+
+    # regularization loss — scalar, non-negative
+    reg_loss = model.get_transform_loss(trans_inp, trans_feat)
+    assert reg_loss.shape == (),        "reg_loss must be scalar"
+    assert reg_loss.item() >= 0,        "reg_loss must be non-negative"
+
+    # ABC contract — get_feature_dim returns correct value
+    assert model.get_feature_dim() == cfg.feature_dim
+
+    # parameter count — PointNet should be ~3.5M params
+    n_params = model.count_parameters()
+    assert n_params > 1_000_000, f"param count suspiciously low: {n_params:,}"
+
+    print(f"    [PASS] all PointNet forward pass tests passed")
+    print(f"    logits shape     : {logits.shape}")
+    print(f"    trans_inp shape  : {trans_inp.shape}")
+    print(f"    trans_feat shape : {trans_feat.shape}")
+    print(f"    reg_loss         : {reg_loss.item():.6f}")
+    print(f"    total params     : {n_params:,}")
+    print(f"    model repr       : {model}")
+    # ======================================================================
+# TEST 5 — ModelRegistry factory + hash map behaviour
+# ======================================================================
+if RUN_ONLY is None or RUN_ONLY == 5:
+    print("\n[5] Testing ModelRegistry...")
+
+    import torch
+    from src.utils.config import PointNetConfig
+    from src.models.base import BasePointNetBackbone
+    from src.models.registry import ModelRegistry
+
+    cfg = PointNetConfig()
+
+    # positive test — "pointnet" is registered at import time
+    assert "pointnet" in ModelRegistry.list_models(), \
+        "pointnet should be registered"
+
+    # positive test — build returns correct type
+    model = ModelRegistry.build("pointnet", cfg)
+    assert isinstance(model, BasePointNetBackbone), \
+        "built model must be BasePointNetBackbone"
+
+    # positive test — built model has correct feature dim
+    assert model.get_feature_dim() == cfg.feature_dim
+
+    # positive test — forward pass works on built model
+    x = torch.randn(2, 1024, 3)
+    logits, t1, t2 = model(x)
+    assert logits.shape == (2, cfg.num_classes)
+
+    # negative test — unknown name raises KeyError
+    try:
+        ModelRegistry.build("unknown_model", cfg)
+        assert False, "Should have raised KeyError"
+    except KeyError:
+        pass  # correct
+
+    # negative test — registering non-backbone raises TypeError
+    try:
+        import torch.nn as nn
+        class FakeModel(nn.Module):
+            pass
+        ModelRegistry.register("fake", FakeModel)  # type: ignore
+        assert False, "Should have raised TypeError"
+    except TypeError:
+        pass  # correct
+
+    # negative test — duplicate registration raises ValueError
+    from src.models.pointnet import PointNet
+    try:
+        ModelRegistry.register("pointnet", PointNet)
+        assert False, "Should have raised ValueError — duplicate name"
+    except ValueError:
+        pass  # correct
+
+    # positive test — remove + re-register works
+    ModelRegistry.remove("pointnet")
+    assert "pointnet" not in ModelRegistry.list_models()
+    ModelRegistry.register("pointnet", PointNet)
+    assert "pointnet" in ModelRegistry.list_models()
+
+    print("    [PASS] all registry tests passed")
+    print(f"    registered models : {ModelRegistry.list_models()}")
