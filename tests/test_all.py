@@ -292,3 +292,131 @@ if RUN_ONLY is None or RUN_ONLY == 5:
 
     print("    [PASS] all registry tests passed")
     print(f"    registered models : {ModelRegistry.list_models()}")
+    # ======================================================================
+# TEST 6 — Dataset: FPS, normalisation, shapes, dataloader
+# ======================================================================
+if RUN_ONLY is None or RUN_ONLY == 6:
+    print("\n[6] Testing ModelNet40Dataset...")
+
+    import torch
+    import numpy as np
+    from pathlib import Path
+    from src.utils.config import PointNetConfig
+    from src.data.dataset import (
+        farthest_point_sample,
+        normalize_point_cloud,
+        augment_point_cloud,
+        ModelNet40Dataset,
+        build_dataloader,
+        CLASS_TO_IDX,
+        MODELNET40_CLASSES,
+    )
+
+    cfg = PointNetConfig()
+
+    # -- FPS tests --
+    # positive test — output shape correct
+    pts = np.random.randn(10000, 3).astype(np.float32)
+    sampled = farthest_point_sample(pts, 1024)
+    assert sampled.shape == (1024, 3), f"FPS shape wrong: {sampled.shape}"
+
+    # positive test — FPS with fewer points than requested (edge case)
+    small = np.random.randn(100, 3).astype(np.float32)
+    sampled_small = farthest_point_sample(small, 1024)
+    assert sampled_small.shape == (1024, 3)
+
+    print("    [PASS] FPS shape tests passed")
+
+    # -- Normalisation tests --
+    pts_norm = normalize_point_cloud(pts)
+    # centroid should be near zero
+    assert np.abs(pts_norm.mean(axis=0)).max() < 0.1, "centroid not near zero"
+    # max L2 norm should be <= 1.0
+    norms = np.sqrt(np.sum(pts_norm ** 2, axis=1))
+    assert norms.max() <= 1.0 + 1e-5, f"max norm > 1: {norms.max()}"
+
+    print("    [PASS] normalisation tests passed")
+
+    # -- Augmentation test --
+    pts_aug = augment_point_cloud(pts[:1024], cfg)
+    assert pts_aug.shape == (1024, 3), "augmentation changed shape"
+    assert not np.allclose(pts_aug, pts[:1024]), "augmentation had no effect"
+
+    print("    [PASS] augmentation tests passed")
+
+    # -- Class map tests --
+    assert len(MODELNET40_CLASSES) == 40, "should have 40 classes"
+    assert len(CLASS_TO_IDX)       == 40, "CLASS_TO_IDX should have 40 entries"
+    assert CLASS_TO_IDX["airplane"] == 0,  "airplane should be class 0"
+    assert CLASS_TO_IDX["xbox"]     == 39, "xbox should be class 39"
+
+    # multi-word class names must be in map
+    assert "night_stand" in CLASS_TO_IDX, "night_stand missing"
+    assert "flower_pot"  in CLASS_TO_IDX, "flower_pot missing"
+    assert "tv_stand"    in CLASS_TO_IDX, "tv_stand missing"
+
+    print("    [PASS] class map tests passed")
+
+    # -- _parse_class_name tests --
+    from src.data.dataset import ModelNet40Dataset as DS
+
+    assert DS._parse_class_name("airplane_0001")    == "airplane"
+    assert DS._parse_class_name("night_stand_0001") == "night_stand"
+    assert DS._parse_class_name("flower_pot_0001")  == "flower_pot"
+    assert DS._parse_class_name("tv_stand_0001")    == "tv_stand"
+    assert DS._parse_class_name("xbox_0001")        == "xbox"
+    assert DS._parse_class_name("unknown_9999")     is None
+
+    print("    [PASS] class name parser tests passed")
+
+    # -- Dataset + DataLoader tests (only if data exists) --
+    data_path = cfg.data_path
+    if data_path.exists():
+        # dataset init
+        dataset = ModelNet40Dataset(config=cfg, split="train")
+        assert len(dataset) > 0, "dataset should have samples"
+        print(f"    train samples loaded : {len(dataset)}")
+
+        # getitem — shape, type, label range
+        points, label = dataset[0]
+        assert points.shape == (cfg.num_points, 3), \
+            f"point cloud shape wrong: {points.shape}"
+        assert isinstance(label, int),              "label must be int"
+        assert 0 <= label < cfg.num_classes,        f"label out of range: {label}"
+        assert points.dtype == torch.float32,       "must be float32"
+
+        # normalisation check on loaded sample
+        norms = torch.norm(points, dim=1)
+        assert norms.max().item() <= 1.0 + 1e-4,   "points not in unit sphere"
+
+        print(f"    [PASS] __getitem__ shape + type + range tests passed")
+
+        # test split
+        test_ds = ModelNet40Dataset(config=cfg, split="test")
+        assert len(test_ds) > 0, "test dataset empty"
+        print(f"    test samples loaded  : {len(test_ds)}")
+
+        # negative test — invalid split raises ValueError
+        try:
+            bad = ModelNet40Dataset(config=cfg, split="val")
+            assert False, "should have raised ValueError"
+        except ValueError:
+            pass
+
+        print("    [PASS] invalid split raises ValueError")
+
+        # dataloader batch shape
+        loader = build_dataloader(cfg, "train")
+        batch_pts, batch_labels = next(iter(loader))
+        assert batch_pts.shape    == (cfg.batch_size, cfg.num_points, 3), \
+            f"batch shape wrong: {batch_pts.shape}"
+        assert batch_labels.shape == (cfg.batch_size,), \
+            f"label shape wrong: {batch_labels.shape}"
+
+        print(f"    [PASS] dataloader batch shape tests passed")
+        print(f"    batch points shape : {batch_pts.shape}")
+        print(f"    batch labels shape : {batch_labels.shape}")
+
+    else:
+        print(f"    [SKIP] data not found at {data_path} — download first")
+        print(f"    FPS + normalise + augment + parser tests all passed")

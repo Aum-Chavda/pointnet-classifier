@@ -31,7 +31,7 @@ class PointNetConfig:
     # ------------------------------------------------------------------
     # Data
     # ------------------------------------------------------------------
-    data_root: str = "data/modelnet40"
+    data_root: str = "data/modelnet40_normal_resampled"
     # Number of points sampled per point cloud via Farthest Point Sampling
     # 1024 is the standard from the original paper
     num_points: int = 1024
