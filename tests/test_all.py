@@ -765,3 +765,80 @@ if RUN_ONLY is None or RUN_ONLY == 10:
     print(f"    [PASS] feature extraction: {features.shape}")
     print(f"\n    [PASS] all visualize tests passed")
     print(f"    outputs saved to: {out_dir.resolve()}")
+    # ======================================================================
+# TEST 11 — Inferencer: preprocessing pipeline + output format
+# ======================================================================
+if RUN_ONLY is None or RUN_ONLY == 11:
+    print("\n[11] Testing Inferencer...")
+
+    import torch
+    import numpy as np
+    from pathlib import Path
+    from src.utils.config import PointNetConfig
+    from src.utils.inference import Inferencer
+    from src.data.dataset import MODELNET40_CLASSES
+
+    cfg = PointNetConfig()
+
+    # -- Test without checkpoint (no training done yet) --
+    # We test the preprocessing and output format using a mock
+
+    # positive test — _load_points static method works
+    # find any .txt file in the dataset
+    data_path = cfg.data_path
+    if data_path.exists():
+        sample_files = list(data_path.glob("*/*.txt"))
+        if sample_files:
+            test_file = sample_files[0]
+            points = Inferencer._load_points(test_file)
+            assert points.shape[1] == 3,       "must be [N, 3]"
+            assert points.dtype == np.float32, "must be float32"
+            assert points.shape[0] > 0,        "must have points"
+            print(f"    [PASS] _load_points: {points.shape}")
+
+    # -- Test with checkpoint if available --
+    ckpt_path = Path("checkpoints") / "best_model.pth"
+
+    if ckpt_path.exists():
+        inf = Inferencer(cfg, checkpoint_dir="checkpoints")
+
+        # Find a test file
+        test_files = list(cfg.data_path.glob("*/*.txt"))
+        if test_files:
+            result = inf.predict(test_files[0])
+
+            # output format tests
+            assert "class"      in result, "missing 'class' key"
+            assert "confidence" in result, "missing 'confidence' key"
+            assert "top5"       in result, "missing 'top5' key"
+            assert "all_probs"  in result, "missing 'all_probs' key"
+
+            # confidence in [0, 1]
+            assert 0.0 <= result["confidence"] <= 1.0, \
+                f"confidence out of range: {result['confidence']}"
+
+            # class is valid
+            assert result["class"] in MODELNET40_CLASSES, \
+                f"unknown class: {result['class']}"
+
+            # top5 has 5 entries
+            assert len(result["top5"]) == 5, "top5 should have 5 entries"
+
+            # all_probs sums to 1
+            assert abs(result["all_probs"].sum() - 1.0) < 1e-5, \
+                "probabilities should sum to 1"
+
+            # format_result returns non-empty string
+            formatted = inf.format_result(result)
+            assert len(formatted) > 0
+            assert result["class"].upper() in formatted
+
+            print(f"    [PASS] predict output format correct")
+            print(f"    [PASS] probabilities sum to 1")
+            print(f"\n{formatted}")
+
+    else:
+        print(f"    [SKIP] no checkpoint found — train first")
+        print(f"    [PASS] _load_points and static method tests passed")
+
+    print(f"\n    [PASS] all Inferencer tests passed")

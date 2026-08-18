@@ -30,7 +30,7 @@ from src.utils.visualize import (
     plot_tsne,
     extract_features,
 )
-#from src.utils.inference import Inferencer
+from src.utils.inference import Inferencer
 
 
 # ======================================================================
@@ -194,21 +194,21 @@ def run_eval(cfg: PointNetConfig) -> None:
 # Infer
 # ======================================================================
 
-#def run_infer(cfg: PointNetConfig, file_path: str) -> None:
+def run_infer(cfg: PointNetConfig, file_path: str) -> None:
     """Run inference on a single point cloud file."""
     #print(f"\n  Running inference on: {file_path}")
 
-   # inf    = Inferencer(cfg, checkpoint_dir="checkpoints")
-   # result = inf.predict(file_path)
+    inf    = Inferencer(cfg, checkpoint_dir="checkpoints")
+    result = inf.predict(file_path)
 
-   # print(inf.format_result(result))
+    print(inf.format_result(result))
 
     # Save result
-   #Path("outputs").mkdir(exist_ok=True)
-    #out = Path("outputs/inference_result.txt")
-   # with open(out, "w") as f:
-    #    f.write(inf.format_result(result))
-    #print(f"\n  Saved -> {out}")
+    Path("outputs").mkdir(exist_ok=True)
+    out = Path("outputs/inference_result.txt")
+    with open(out, "w", encoding="utf-8") as f:
+        f.write(inf.format_result(result))
+    print(f"\n  Saved -> {out}")
 
 
 # ======================================================================
@@ -241,7 +241,11 @@ def main() -> None:
         run_eval(cfg)
 
     elif args.mode == "infer":
-        print("  Inference not yet available — train first.")
+        if args.file is None:
+            print("  Error: --file required for --mode infer")
+            print("  Example: python main.py --mode infer --file data/.../chair_0001.txt")
+            return
+        run_infer(cfg, args.file)
 
 
 if __name__ == "__main__":
