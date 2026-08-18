@@ -282,9 +282,8 @@ $env:PYTHONIOENCODING = "utf-8"
 | 1 | BEV CNN (ResNet, CIFAR-10) | 82.4% val acc | Done |
 | 2 | Mini I-JEPA (ViT-Tiny, STL-10) | Loss 0.2872, 3.17x above random | Done |
 | 3 | **PointNet 3D Classifier (ModelNet40)** | **85.4% test acc** | Done |
-| 4 | Semantic Diffusion Model | In progress | - |
-| 5 | TBD | - | - |
-
+| 4 | Mini VLA: Visual Encoder + Action Head | - | Upcoming |
+| 5 | Depth-Aware Grasp Pose Estimator | - | Upcoming |
 ---
 
 ## Reference
