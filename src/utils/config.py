@@ -91,7 +91,7 @@ class PointNetConfig:
     num_workers: int = 0
     pin_memory: bool = False
     checkpoint_dir: str = "checkpoints"
-    log_every_n_steps: int = 10
+    log_every_n_steps: int = 50
     # Random seed for reproducibility
     seed: int = 42
 

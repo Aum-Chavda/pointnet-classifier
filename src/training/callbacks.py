@@ -76,7 +76,7 @@ class EarlyStopping(Callback):
     DS&A : Monotonic tracker — O(1) per epoch
            best_value: running maximum of monitored metric
            counter   : epochs since last improvement
-           When counter >= patience → sets self.should_stop = True
+           When counter >= patience -> sets self.should_stop = True
 
     Real-world analogy: a runner who stops after N laps with no personal best.
 
@@ -226,7 +226,7 @@ class ModelCheckpoint(Callback):
             self._save(epoch, metrics, filename="best_model.pth")
             print(
                 f"  [Checkpoint] New best {self.monitor}: "
-                f"{self.best:.4f} → saved best_model.pth"
+                f"{self.best:.4f} -> saved best_model.pth"
             )
 
     def on_train_end(self) -> None:
@@ -307,7 +307,7 @@ class LRSchedulerCallback(Callback):
     DS&A : O(1) per epoch — scheduler.step() is O(1) parameter update
 
     We use StepLR: multiply LR by gamma every step_size epochs.
-    Config: lr_step=20, lr_gamma=0.5 → halve LR every 20 epochs.
+    Config: lr_step=20, lr_gamma=0.5 -> halve LR every 20 epochs.
 
     Example LR schedule (lr=0.001, step=20, gamma=0.5):
         epochs  1-20  : lr = 0.001000

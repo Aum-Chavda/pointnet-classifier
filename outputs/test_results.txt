@@ -1,0 +1,49 @@
+PointNet Test Results — ModelNet40
+========================================
+Checkpoint epoch  : 48
+Overall accuracy  : 85.41%
+Mean class acc    : 81.90%
+Test loss         : 0.5079
+Total samples     : 2468
+
+Per-class accuracy:
+  airplane        100.00%
+  bathtub         78.00%
+  bed             90.00%
+  bench           70.00%
+  bookshelf       85.00%
+  bottle          99.00%
+  bowl            90.00%
+  car             100.00%
+  chair           97.00%
+  cone            100.00%
+  cup             65.00%
+  curtain         80.00%
+  desk            73.26%
+  door            90.00%
+  dresser         68.60%
+  flower_pot      30.00%
+  glass_box       89.00%
+  guitar          100.00%
+  keyboard        100.00%
+  lamp            85.00%
+  laptop          100.00%
+  mantel          94.00%
+  monitor         94.00%
+  night_stand     63.95%
+  person          70.00%
+  piano           81.00%
+  plant           68.00%
+  radio           55.00%
+  range_hood      79.00%
+  sink            80.00%
+  sofa            97.00%
+  stairs          80.00%
+  stool           70.00%
+  table           88.00%
+  tent            95.00%
+  toilet          94.00%
+  tv_stand        86.00%
+  vase            76.00%
+  wardrobe        35.00%
+  xbox            80.00%

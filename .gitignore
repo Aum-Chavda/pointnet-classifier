@@ -4,7 +4,9 @@ __pycache__/
 *.pth
 *.ckpt
 data/
-outputs/
+outputs/*
+!outputs/training_log.txt
+!outputs/test_results.txt
 checkpoints/
 docs/*.png
 *.log

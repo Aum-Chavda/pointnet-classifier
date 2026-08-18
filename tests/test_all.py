@@ -693,3 +693,75 @@ if RUN_ONLY is None or RUN_ONLY == 9:
     print(f"    train_loss : {history['train_loss']}")
     print(f"    val_acc    : {history['val_acc']}")
     print(f"\n    [PASS] all Trainer smoke tests passed")
+    # ======================================================================
+# TEST 10 — Visualize: training curves + confusion matrix + feature extract
+# ======================================================================
+if RUN_ONLY is None or RUN_ONLY == 10:
+    print("\n[10] Testing visualize...")
+
+    import numpy as np
+    import torch
+    from pathlib import Path
+    from torch.utils.data import DataLoader, TensorDataset
+    from src.utils.config import PointNetConfig
+    from src.utils.visualize import (
+        plot_training_curves,
+        plot_confusion_matrix,
+        extract_features,
+    )
+    from src.models.registry import ModelRegistry
+
+    cfg      = PointNetConfig()
+    out_dir  = Path("outputs")
+
+    # -- Training curves test --
+    fake_history = {
+        "train_loss"     : [2.1, 1.8, 1.5, 1.3, 1.1],
+        "val_loss"       : [2.3, 2.0, 1.7, 1.5, 1.4],
+        "train_acc"      : [0.30, 0.42, 0.55, 0.63, 0.70],
+        "val_acc"        : [0.25, 0.38, 0.50, 0.58, 0.63],
+        "train_mean_acc" : [0.28, 0.40, 0.52, 0.60, 0.68],
+        "val_mean_acc"   : [0.23, 0.36, 0.48, 0.56, 0.61],
+        "lr"             : [0.001, 0.001, 0.001, 0.0005, 0.0005],
+    }
+
+    curves_path = plot_training_curves(fake_history, save_dir=out_dir)
+    assert curves_path.exists(), "training_curves.png not saved"
+    print("    [PASS] training curves saved")
+
+    # -- Confusion matrix test --
+    fake_cm = np.zeros((40, 40), dtype=np.int64)
+    for i in range(40):
+        fake_cm[i, i] = np.random.randint(10, 50)         # diagonal — correct
+        for j in range(40):
+            if i != j:
+                fake_cm[i, j] = np.random.randint(0, 5)   # off-diagonal — errors
+
+    cm_path = plot_confusion_matrix(fake_cm, save_dir=out_dir, normalize=True)
+    assert cm_path.exists(), "confusion_matrix.png not saved"
+    print("    [PASS] confusion matrix saved")
+
+    # -- Feature extraction test --
+    tiny_cfg = PointNetConfig(num_points=64, batch_size=4)
+    model    = ModelRegistry.build("pointnet", tiny_cfg)
+    model.eval()
+
+    fake_pts    = torch.randn(16, 64, 3)
+    fake_labels = torch.randint(0, 40, (16,))
+    loader      = DataLoader(
+        TensorDataset(fake_pts, fake_labels),
+        batch_size=4
+    )
+
+    features, labels = extract_features(
+        model, loader, torch.device("cpu"), max_batches=4
+    )
+
+    assert features.shape[1] == 1024, \
+        f"features dim wrong: {features.shape}"
+    assert features.shape[0] == labels.shape[0], \
+        "features and labels count mismatch"
+
+    print(f"    [PASS] feature extraction: {features.shape}")
+    print(f"\n    [PASS] all visualize tests passed")
+    print(f"    outputs saved to: {out_dir.resolve()}")

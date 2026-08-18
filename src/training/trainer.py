@@ -264,12 +264,12 @@ class Trainer:
 
             # -- Progress print every N steps --
             if (batch_idx + 1) % self.config.log_every_n_steps == 0:
-                print(
-                    f"  Epoch [{epoch+1:03d}] "
-                    f"[{batch_idx+1:03d}/{n_batches:03d}] "
-                    f"loss: {loss_meter.avg:.4f}",
-                    end="\r",
-                )
+                    print(
+                        f"  Epoch [{epoch+1:03d}] "
+                        f"[{batch_idx+1:03d}/{n_batches:03d}] "
+                        f"loss: {loss_meter.avg:.4f}",
+                        flush=True,
+                    )
 
         # Compute epoch-level metrics
         train_metrics = self.train_tracker.compute()
@@ -358,7 +358,8 @@ class Trainer:
             f"| train_acc: {train_metrics['train_acc']*100:.2f}% "
             f"| val_loss: {val_metrics['val_loss']:.4f} "
             f"| val_acc: {val_metrics['val_acc']*100:.2f}% "
-            f"| lr: {self._get_lr():.6f}"
+            f"| lr: {self._get_lr():.6f}",
+            flush=True,
         )
 
     def get_val_confusion_matrix(self) -> "np.ndarray":
