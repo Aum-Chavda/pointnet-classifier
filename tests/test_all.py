@@ -626,3 +626,70 @@ if RUN_ONLY is None or RUN_ONLY == 8:
     print("    [PASS] CallbackList.should_stop test passed")
 
     print("\n    [PASS] all callback tests passed")
+    # ======================================================================
+# TEST 9 — Trainer: smoke test (2 epochs, tiny subset)
+# ======================================================================
+if RUN_ONLY is None or RUN_ONLY == 9:
+    print("\n[9] Testing Trainer (smoke test)...")
+
+    import torch
+    from torch.utils.data import DataLoader, TensorDataset
+    from src.utils.config import PointNetConfig
+    from src.models.registry import ModelRegistry
+    from src.training.trainer import Trainer
+
+    cfg = PointNetConfig(
+        epochs             = 2,
+        batch_size         = 4,
+        num_points         = 64,    # tiny for speed
+        feature_dim        = 1024,
+        early_stop_patience= 10,
+        log_every_n_steps  = 1,
+    )
+
+    # Build tiny synthetic dataset — no real data needed
+    B, N = 16, 64
+    fake_points = torch.randn(B, N, 3)
+    fake_labels = torch.randint(0, 40, (B,))
+    dataset     = TensorDataset(fake_points, fake_labels)
+
+    train_loader = DataLoader(dataset, batch_size=4, shuffle=True)
+    val_loader   = DataLoader(dataset, batch_size=4, shuffle=False)
+
+    # Build model via registry
+    model   = ModelRegistry.build("pointnet", cfg)
+    trainer = Trainer(model, cfg)
+
+    # Run 2 epochs
+    history = trainer.fit(train_loader, val_loader)
+
+    # positive test — history has correct keys
+    assert "train_loss"  in history, "missing train_loss"
+    assert "val_loss"    in history, "missing val_loss"
+    assert "train_acc"   in history, "missing train_acc"
+    assert "val_acc"     in history, "missing val_acc"
+    assert "lr"          in history, "missing lr"
+
+    # positive test — history has correct length
+    assert len(history["train_loss"]) == 2, \
+        f"expected 2 epochs, got {len(history['train_loss'])}"
+
+    # positive test — losses are positive scalars
+    for loss in history["train_loss"] + history["val_loss"]:
+        assert loss > 0, f"loss should be positive, got {loss}"
+
+    # positive test — accuracies in [0, 1]
+    for acc in history["train_acc"] + history["val_acc"]:
+        assert 0.0 <= acc <= 1.0, f"acc out of range: {acc}"
+
+    # positive test — confusion matrix shape
+    cm = trainer.get_val_confusion_matrix()
+    assert cm.shape == (40, 40), f"confusion matrix shape: {cm.shape}"
+
+    print(f"    [PASS] history keys and lengths correct")
+    print(f"    [PASS] loss values positive")
+    print(f"    [PASS] accuracy values in [0,1]")
+    print(f"    [PASS] confusion matrix shape correct")
+    print(f"    train_loss : {history['train_loss']}")
+    print(f"    val_acc    : {history['val_acc']}")
+    print(f"\n    [PASS] all Trainer smoke tests passed")
