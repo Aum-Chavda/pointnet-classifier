@@ -1,14 +1,50 @@
-.venv/
+# Python
 __pycache__/
 *.pyc
-*.pth
-*.ckpt
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Data — never commit raw data (GBs)
 data/
-outputs/*
-!outputs/training_log.txt
-!outputs/test_results.txt
+!data/.gitkeep
+
+# FPS cache — large binary files
+data/fps_cache/
+
+# Checkpoints — large model weights
 checkpoints/
-docs/*.png
-*.log
-*.json
+!checkpoints/.gitkeep
+
+# Outputs — generated files
+outputs/
+!outputs/.gitkeep
+!outputs/training_log.txt
+!outputs/eval_log.txt
+!outputs/test_results.txt
+
+# VS Code
+.vscode/
+.vs/
+
+# PyCharm
+.idea/
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Logs
+*.log
