@@ -420,3 +420,209 @@ if RUN_ONLY is None or RUN_ONLY == 6:
     else:
         print(f"    [SKIP] data not found at {data_path} — download first")
         print(f"    FPS + normalise + augment + parser tests all passed")
+        # ======================================================================
+# TEST 7 — PerClassAccuracyTracker + AverageMeter
+# ======================================================================
+if RUN_ONLY is None or RUN_ONLY == 7:
+    print("\n[7] Testing metrics...")
+
+    import torch
+    import numpy as np
+    from src.training.metrics import PerClassAccuracyTracker, AverageMeter
+
+    # -- PerClassAccuracyTracker tests --
+    tracker = PerClassAccuracyTracker(num_classes=40)
+
+    # positive test — perfect predictions
+    # 10 samples all class 0, predicted correctly
+    logits = torch.zeros(10, 40)
+    logits[:, 0] = 10.0          # high score for class 0
+    labels = torch.zeros(10, dtype=torch.long)
+    tracker.update(logits, labels)
+
+    metrics = tracker.compute()
+    assert metrics["overall_acc"]    == 1.0, "perfect preds should give 100%"
+    assert metrics["per_class_acc"][0] == 1.0, "class 0 should be 100%"
+    assert metrics["total_samples"]  == 10
+
+    print("    [PASS] perfect prediction test passed")
+
+    # positive test — zero accuracy (all wrong)
+    tracker.reset()
+    logits_wrong = torch.zeros(10, 40)
+    logits_wrong[:, 1] = 10.0   # predict class 1
+    labels_zero = torch.zeros(10, dtype=torch.long)  # true class 0
+    tracker.update(logits_wrong, labels_zero)
+
+    metrics_wrong = tracker.compute()
+    assert metrics_wrong["overall_acc"] == 0.0, "all wrong should give 0%"
+    assert metrics_wrong["per_class_acc"][0] == 0.0
+
+    print("    [PASS] zero accuracy test passed")
+
+    # positive test — mixed accuracy
+    tracker.reset()
+    # 4 correct class 0, 6 wrong (predicted class 1)
+    logits_mix = torch.zeros(10, 40)
+    logits_mix[:4, 0]  = 10.0   # first 4 correct
+    logits_mix[4:, 1]  = 10.0   # last 6 wrong
+    labels_mix = torch.zeros(10, dtype=torch.long)
+    tracker.update(logits_mix, labels_mix)
+
+    metrics_mix = tracker.compute()
+    assert abs(metrics_mix["overall_acc"] - 0.4) < 1e-6, \
+        f"expected 0.4, got {metrics_mix['overall_acc']}"
+
+    print("    [PASS] mixed accuracy test passed")
+
+    # positive test — multi-class tracking
+    tracker.reset()
+    # class 0: 5 correct, class 1: 3 correct
+    logits_mc = torch.zeros(8, 40)
+    logits_mc[:5, 0] = 10.0
+    logits_mc[5:, 1] = 10.0
+    labels_mc = torch.tensor([0,0,0,0,0, 1,1,1], dtype=torch.long)
+    tracker.update(logits_mc, labels_mc)
+
+    metrics_mc = tracker.compute()
+    assert metrics_mc["overall_acc"]      == 1.0
+    assert metrics_mc["per_class_acc"][0] == 1.0
+    assert metrics_mc["per_class_acc"][1] == 1.0
+    assert metrics_mc["mean_class_acc"]   == 1.0
+
+    print("    [PASS] multi-class tracking test passed")
+
+    # positive test — confusion matrix shape
+    cm = tracker.get_confusion_matrix()
+    assert cm.shape == (40, 40), f"confusion matrix shape wrong: {cm.shape}"
+    assert cm[0, 0] == 5, "class 0 diagonal should be 5"
+    assert cm[1, 1] == 3, "class 1 diagonal should be 3"
+
+    print("    [PASS] confusion matrix test passed")
+
+    # -- AverageMeter tests --
+    meter = AverageMeter("loss")
+
+    # positive test — running average
+    meter.update(1.0, n=10)
+    meter.update(2.0, n=10)
+    assert abs(meter.avg - 1.5) < 1e-6, f"avg wrong: {meter.avg}"
+
+    # positive test — weighted average (different batch sizes)
+    meter.reset()
+    meter.update(1.0, n=3)   # 3 samples with loss 1.0
+    meter.update(4.0, n=1)   # 1 sample with loss 4.0
+    # expected: (3*1.0 + 1*4.0) / 4 = 1.75
+    assert abs(meter.avg - 1.75) < 1e-6, f"weighted avg wrong: {meter.avg}"
+
+    # positive test — empty meter returns 0
+    empty = AverageMeter()
+    assert empty.avg == 0.0
+
+    print("    [PASS] AverageMeter tests passed")
+    print(f"    repr: {meter}")
+    # ======================================================================
+# TEST 8 — Callbacks: EarlyStopping, ModelCheckpoint, CallbackList
+# ======================================================================
+if RUN_ONLY is None or RUN_ONLY == 8:
+    print("\n[8] Testing callbacks...")
+
+    import torch
+    import torch.nn as nn
+    from src.utils.config import PointNetConfig
+    from src.training.callbacks import (
+        EarlyStopping, ModelCheckpoint, LRSchedulerCallback, CallbackList
+    )
+
+    cfg = PointNetConfig()
+
+    # -- EarlyStopping tests --
+    # positive test — stops after patience epochs without improvement
+    es = EarlyStopping(monitor="val_acc", patience=3, mode="max")
+    assert not es.should_stop
+
+    es.on_epoch_end(0, {"val_acc": 0.80})   # improvement
+    es.on_epoch_end(1, {"val_acc": 0.79})   # no improvement — counter=1
+    es.on_epoch_end(2, {"val_acc": 0.78})   # no improvement — counter=2
+    assert not es.should_stop, "should not stop yet (counter=2 < patience=3)"
+
+    es.on_epoch_end(3, {"val_acc": 0.77})   # no improvement — counter=3
+    assert es.should_stop, "should stop (counter=3 >= patience=3)"
+    assert es.best_epoch == 0
+    print("    [PASS] EarlyStopping max-mode test passed")
+
+    # positive test — reset on improvement
+    es2 = EarlyStopping(monitor="val_acc", patience=3, mode="max")
+    es2.on_epoch_end(0, {"val_acc": 0.80})
+    es2.on_epoch_end(1, {"val_acc": 0.79})   # counter=1
+    es2.on_epoch_end(2, {"val_acc": 0.85})   # improvement — counter resets to 0
+    assert es2.counter == 0, "counter should reset on improvement"
+    assert not es2.should_stop
+    print("    [PASS] EarlyStopping counter reset test passed")
+
+    # positive test — min mode (for loss)
+    es3 = EarlyStopping(monitor="val_loss", patience=2, mode="min")
+    es3.on_epoch_end(0, {"val_loss": 1.0})
+    es3.on_epoch_end(1, {"val_loss": 0.8})   # improvement
+    es3.on_epoch_end(2, {"val_loss": 0.9})   # no improvement
+    es3.on_epoch_end(3, {"val_loss": 0.85})  # no improvement — should stop
+    assert es3.should_stop
+    print("    [PASS] EarlyStopping min-mode test passed")
+
+    # -- ModelCheckpoint tests --
+    # use a tiny model for speed
+    tiny_model = nn.Linear(10, 5)
+    optimizer  = torch.optim.Adam(tiny_model.parameters(), lr=1e-3)
+
+    ckpt = ModelCheckpoint(
+        config    = cfg,
+        monitor   = "val_acc",
+        mode      = "max",
+        model     = tiny_model,
+        optimizer = optimizer,
+    )
+
+    # save checkpoint on improvement
+    ckpt.on_epoch_end(0, {"val_acc": 0.80})
+    ckpt.on_epoch_end(1, {"val_acc": 0.85})
+    ckpt.on_epoch_end(2, {"val_acc": 0.83})   # no improvement — no new best
+
+    # best should be 0.85
+    assert abs(ckpt.best - 0.85) < 1e-6, f"best wrong: {ckpt.best}"
+    assert ckpt.best_epoch == 1
+
+    # checkpoint files should exist
+    from pathlib import Path
+    assert (cfg.checkpoint_path / "best_model.pth").exists(), "best_model.pth missing"
+    assert (cfg.checkpoint_path / "last_model.pth").exists(), "last_model.pth missing"
+    print("    [PASS] ModelCheckpoint save test passed")
+
+    # load best test
+    loaded_model = nn.Linear(10, 5)
+    device = torch.device("cpu")
+    loaded_model = ckpt.load_best(loaded_model, device)
+    print("    [PASS] ModelCheckpoint load_best test passed")
+
+    # -- LRSchedulerCallback test --
+    opt2 = torch.optim.Adam(tiny_model.parameters(), lr=1e-3)
+    lr_cb = LRSchedulerCallback(opt2, step_size=2, gamma=0.5)
+
+    lr_cb.on_epoch_end(0, {})
+    lr_cb.on_epoch_end(1, {})
+    lr_cb.on_epoch_end(2, {})   # after 2 steps lr should be halved
+    assert lr_cb.get_lr() < 1e-3, f"LR should have decayed, got {lr_cb.get_lr()}"
+    print("    [PASS] LRSchedulerCallback decay test passed")
+
+    # -- CallbackList test --
+    es_cb   = EarlyStopping(monitor="val_acc", patience=2, mode="max")
+    cb_list = CallbackList([es_cb])
+
+    cb_list.on_epoch_end(0, {"val_acc": 0.80})
+    assert not cb_list.should_stop
+
+    cb_list.on_epoch_end(1, {"val_acc": 0.79})
+    cb_list.on_epoch_end(2, {"val_acc": 0.78})
+    assert cb_list.should_stop, "CallbackList.should_stop should reflect EarlyStopping"
+    print("    [PASS] CallbackList.should_stop test passed")
+
+    print("\n    [PASS] all callback tests passed")
